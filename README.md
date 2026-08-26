@@ -22,11 +22,10 @@ the `dsh-fetch-url-firecrawl` provider entry. No build step is involved.
 
 ## Wire it up (profile's own `cordis.patch.yml`)
 
-The bundle layer only mounts the provider entry. Two deployment choices live in
-the profile's own `cordis.patch.yml`
+The bundle layer only mounts the provider entry. **Selecting** it is a
+deployment choice, made in the profile's own `cordis.patch.yml`
 (`~/.dsh/profiles/<profile>/cordis.patch.yml`, applied after every bundle
-layer): **select** the provider, and **enable** the host `web_fetch` tool
-(`dsh-base` ships `fetch: false` on the `tool-web` row):
+layer):
 
 ```yaml
 - id: web
@@ -34,17 +33,25 @@ layer): **select** the provider, and **enable** the host `web_fetch` tool
   config:
     fetchProvider: dsh-fetch-url-firecrawl
     searchProvider: <your search provider, if any>
-
-# Enable the host web_fetch tool. Config keys replace wholesale, so carry
-# the full intended tool-web config (keeps dsh-base's 60s search timeout).
-- id: tool-web
-  config:
-    fetch: true
-    searchTimeoutMs: 60000
 ```
 
 Note: entry-patch overrides replace whole config keys, so the `id: web` row
 must state every provider selection the profile wants in one place.
+
+### Tool enablement
+
+Whether a session's model can actually call `web_fetch` is a separate gate
+from provider selection:
+
+- **Web surface** (`dsh-web-app` profile): the host `tool-web` row is
+  disabled by the bundle by design; per-session tool enablement comes from
+  the **agent preset** in use. The shipped `standard`/`code` presets ship
+  `fetch: false` — set `fetch: true` in the preset (or a derived one) for
+  the sessions that should see `web_fetch`.
+- **Non-web profile**: the host `tool-web` row is live and ships
+  `fetch: false`; patch it in the profile's `cordis.patch.yml` (config keys
+  replace wholesale, so carry the full intended config, e.g.
+  `fetch: true` plus `searchTimeoutMs: 60000`).
 
 After editing, restart the DSH server (the host half loads at boot).
 
