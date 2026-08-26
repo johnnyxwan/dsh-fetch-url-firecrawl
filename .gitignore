@@ -1,0 +1,12 @@
+# Local dev symlink to the dsh profile's hoisted node_modules (machine-specific)
+node_modules
+
+# Build artifacts — dist/install.mjs regenerates the tarball from source
+*.tar.gz
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

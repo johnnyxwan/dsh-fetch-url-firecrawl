@@ -1,0 +1,22 @@
+{
+  "name": "dsh-fetch-url-firecrawl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local DSH profile plugin: Firecrawl-backed fetch provider for the web capability seam (ctx.web). Calls the Firecrawl scrape API (POST /v2/scrape, markdown format) and normalizes the result to WebFetchResult. Host half registers provider id 'firecrawl' and the 'dsh-fetch-url-firecrawl' settings namespace; browser half registers a card into settings.plugin.item.",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ]
+    }
+  }
+}
