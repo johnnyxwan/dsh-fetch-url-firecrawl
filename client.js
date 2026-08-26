@@ -464,7 +464,7 @@ window.__ModuleLoader__.load({
 		const inject = ["slots", "locale", "settingsScope"];
 		function apply(ctx) {
 			const t = ctx.locale.bind(DICT);
-			ctx.effect(() => ctx.locale.register(DICT, { en, zh }), "firecrawl: dictionary");
+			ctx.effect(() => ctx.locale.register(DICT, { en, zh }), "dsh-fetch-url-firecrawl: dictionary");
 			const card = new FirecrawlCardController(ctx.settingsScope.bind({ namespace: NS }));
 			ctx.slots.inject("settings.plugin.item", function* () {
 				yield ctx.slots.register({

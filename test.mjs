@@ -101,7 +101,7 @@ assert.equal(webStub.registered.length, 1);
 const provider = webStub.registered[0];
 assert.equal(provider.id, "dsh-fetch-url-firecrawl");
 assert.equal(provider.available(), true);
-console.log("ok: apply() registers a usable fetch provider under id 'firecrawl'");
+console.log("ok: apply() registers a usable fetch provider under id 'dsh-fetch-url-firecrawl'");
 
 // ── settings section: namespace registered + hot reload ────────────────────
 assert.ok(settingsScope, "apply() registered a settings section");
@@ -109,7 +109,7 @@ assert.equal(settingsScope.ns, "dsh-fetch-url-firecrawl", "namespace is the plug
 assert.deepEqual(settingsScope.opts.base, { apiKeyEnv: "FIRECRAWL_API_KEY" }, "base is the entry config");
 // Hot reload: the provider reads current() per fetch, so a settings change
 // takes effect on the next fetch without re-applying the plugin.
-const hotDir = mkdtempSync(join(tmpdir(), "dsh-fc-hot-"));
+const hotDir = mkdtempSync(join(tmpdir(), "dsh-fetch-url-firecrawl-hot-"));
 fakeScrapeOverride = {
 	success: true,
 	data: {
@@ -190,7 +190,7 @@ assert.throws(() => assertHttpUrl("javascript:alert(1)"), (err) => err.code === 
 console.log("ok: non-HTTP(S) URLs rejected locally before any API call");
 
 // ── retrieved-length cap: trim + tmp full-copy spill ───────────────────────
-const capDir = mkdtempSync(join(tmpdir(), "dsh-fc-cap-test-"));
+const capDir = mkdtempSync(join(tmpdir(), "dsh-fetch-url-firecrawl-cap-test-"));
 const longMarkdown = "# Long page\n\n" + "x".repeat(9000) + " END-MARKER";
 fakeScrapeOverride = {
 	success: true,
@@ -230,7 +230,7 @@ fakeScrapeOverride = {
 	}
 };
 const defWeb = { registered: [], registerFetchProvider(p) { this.registered.push(p); return () => {}; } };
-const defDir = mkdtempSync(join(tmpdir(), "dsh-fc-default-cap-"));
+const defDir = mkdtempSync(join(tmpdir(), "dsh-fetch-url-firecrawl-default-cap-"));
 apply({ web: defWeb, inject: noopInject, get: (id) => (id === "credentials" ? { resolve: async () => ({ value: "k" }) } : undefined) }, { apiKeyEnv: "FIRECRAWL_API_KEY", fullCopyDir: defDir });
 const defResult = await defWeb.registered[0].fetch({ url: "https://long.example/d" });
 const defTrimmed = defResult.body.content.split("\n\n[fetched content")[0];
@@ -258,7 +258,7 @@ console.log("ok: truncateUtf8 snaps to character boundaries (CJK, mixed)");
 {
 	// A regular file as the dir's parent → mkdir fails fast with ENOTDIR.
 	const { writeFileSync } = await import("node:fs");
-	const blocker = join(tmpdir(), `dsh-fc-blocker-${Date.now()}.file`);
+	const blocker = join(tmpdir(), `dsh-fetch-url-firecrawl-blocker-${Date.now()}.file`);
 	writeFileSync(blocker, "blocker");
 	const opts = { maxFetchedLength: 100, fullCopyDir: join(blocker, "impossible-subdir") };
 	const mapped = mapScrapeResponse(

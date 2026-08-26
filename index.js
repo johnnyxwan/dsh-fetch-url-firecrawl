@@ -1,5 +1,5 @@
 /**
- * `dsh-fetch-url-firecrawl` — local DSH profile plugin: a Firecrawl-backed
+ * `dsh-fetch-url-firecrawl` — DSH profile plugin: a Firecrawl-backed
  * fetch provider for the web capability seam (`ctx.web`) that retrieves page
  * content through Firecrawl's scrape API (`POST /v2/scrape`, markdown format)
  * instead of plain anonymous HTTP.
@@ -30,7 +30,7 @@
  * format and the native `fetch` client are provider-private and do not use
  * `ctx.llm`.
  *
- * Local plugin for the DSH profile at ~/.dsh/profiles/web — not published.
+ * Install:  dsh plugin --profile <name> add <this repo's git URL> (see README).
  */
 
 import { createHash } from "node:crypto";
@@ -63,7 +63,7 @@ const FIRECRAWL_DEFAULT_MAX_FETCHED_LENGTH = 4096;
 const FIRECRAWL_DEFAULT_TEMP_DIRNAME = "dsh-fetch-url-firecrawl";
 
 /** Attribution header sent on every request. */
-const USER_AGENT = "deepseek-harness/0.0.1 (firecrawl-fetch)";
+const USER_AGENT = "deepseek-harness/0.0.1 (dsh-fetch-url-firecrawl)";
 
 /**
  * Validate the requested URL locally before spending a scrape call: only
@@ -315,7 +315,7 @@ class FirecrawlFetchProvider {
 		}
 		if (resolved !== undefined && resolved.length > 0) return resolved;
 		throw new WebError(
-			`Firecrawl fetch has no API key for "${options.apiKeyEnv ?? FIRECRAWL_DEFAULT_API_KEY_ENV}"; store it through the credentials service (the web Models page writes it), export it in the launching environment, or set a literal "apiKey" in the dsh-fetch-url-firecrawl config`,
+			`Firecrawl fetch has no API key for "${options.apiKeyEnv ?? FIRECRAWL_DEFAULT_API_KEY_ENV}"; store it through the credentials service, export it in the launching environment, or set a literal "apiKey" in the dsh-fetch-url-firecrawl config`,
 			"WEB_PROVIDER_CREDENTIAL_MISSING"
 		);
 	}

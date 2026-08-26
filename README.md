@@ -72,6 +72,5 @@ namespace survive uninstall.
 | `index.js` | host half: registers the fetch provider + settings section |
 | `client.js` | browser half: the settings card (served at `/plugins/dsh-fetch-url-firecrawl/client.js`) |
 | `cordis.patch.yml` | the bundle layer (`dsh.bundle.patch`) |
-| `test.mjs` / `test-client.mjs` | host / browser test suites (`node test.mjs`) |
-| `dist/install.mjs` / `dist/uninstall.mjs` | legacy scripted installer for profiles not using `dsh plugin` — do not combine with the bundle route in the same profile (duplicate entry ids) |
-| `dist/enable-fetch-preset.mjs` | patches the *shipped* standard/code agent presets (`fetch: false` → `true`) in the dsh installation; re-run after a dsh upgrade |
+| `test.mjs` / `test-client.mjs` | host / browser test suites (`node test.mjs` / `node test-client.mjs`) |
+| `dist/enable-fetch-preset.mjs` | deployment-maintenance tool (not part of the plugin runtime): patches the *shipped* standard/code agent presets (`fetch: false` → `true`) in the dsh installation — the `web_fetch` enablement gate on the web surface; re-run after a dsh upgrade |
