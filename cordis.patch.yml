@@ -1,0 +1,29 @@
+# dsh-fetch-url-firecrawl — bundle layer (dsh.bundle.patch).
+#
+# The profile launcher applies this file as a bundle layer, in
+# dsh.profile.bundles order, BEFORE the profile's own cordis.patch.yml.
+# It mounts only this plugin's own fetch-provider entry. Selecting the
+# provider (the `id: web` entry's config.fetchProvider) and enabling the
+# host `web_fetch` tool (`id: tool-web` config.fetch — dsh-base ships it
+# false) are deployment choices that belong in the profile's own
+# cordis.patch.yml — a bundle layer must never clobber another plugin's
+# selection, because entry-patch overrides replace whole config keys.
+#
+# Install:  dsh plugin --profile <name> add <this repo's git URL>
+# Uninstall: dsh plugin --profile <name> remove dsh-fetch-url-firecrawl
+#   (plus any provider-selection rows in the profile's cordis.patch.yml)
+#
+# API key: FIRECRAWL_API_KEY from the dsh credentials store (GUI:
+# Settings -> Credentials), the process environment, or a literal
+# config.apiKey override. The scrape endpoint base URL can be overridden
+# with the FIRECRAWL_BASE_URL environment variable.
+- insert:
+    - id: dsh-fetch-url-firecrawl
+      name: 'dsh-fetch-url-firecrawl'
+      config:
+        apiKeyEnv: FIRECRAWL_API_KEY
+        # maxFetchedLength (bytes, default 4096): fetched-content cap;
+        # over-limit bodies are trimmed and the full copy spills to a tmp
+        # file whose path is left in the tool context. Also editable in the
+        # GUI (Settings -> Plugins -> Firecrawl web fetch).
+        maxFetchedLength: 4096
