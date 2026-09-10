@@ -58,25 +58,37 @@ const webStub = {
 	registerFetchProvider(p) { this.registered.push(p); return () => {}; },
 };
 
-// Minimal mounted-settings simulation: installSettingsSection calls
-// ctx.inject(["settings"], fn); we build a fake scoped ctx whose register()
-// returns a live-mutable scope captured in `settingsScope` for assertions and
-// hot-reload. `noopInject` models a host with no settings service mounted.
+// Minimal mounted-settings simulation: the plugin registers its section via
+// ctx.inject(["settings"], (sctx) => sctx.settings.installSection(...)); we
+// build a fake scoped ctx whose installSection() wraps register() (mirroring
+// SettingsProvider) and returns a live-mutable scope captured in
+// `settingsScope` for assertions and hot-reload. `noopInject` models a host
+// with no settings service mounted.
 let settingsScope = null;
 function fakeInject(deps, fn) {
 	if (!Array.isArray(deps) || !deps.includes("settings")) return; // not mounted
+	const register = (ns, schema, opts) => {
+		let value = { ...opts.base };
+		const watchers = [];
+		settingsScope = {
+			ns, schema, opts,
+			get: () => value,
+			watch: (cb) => watchers.push(cb),
+			set(next) { value = { ...next }; watchers.forEach((cb) => cb()); }
+		};
+		return settingsScope;
+	};
 	const sctx = {
 		settings: {
-			register(ns, schema, opts) {
-				let value = { ...opts.base };
-				const watchers = [];
-				settingsScope = {
-					ns, schema, opts,
-					get: () => value,
-					watch: (cb) => watchers.push(cb),
-					set(next) { value = { ...next }; watchers.forEach((cb) => cb()); }
-				};
-				return settingsScope;
+			register,
+			// Mirror SettingsProvider.installSection(owner, ns, schema, entry, hooks):
+			// register with the entry as base, hand the provider a live source,
+			// fire onChange once, and re-fire on every document update.
+			installSection(owner, ns, schema, entry, hooks) {
+				const scope = register(ns, schema, { base: entry });
+				hooks.setSource(() => scope.get());
+				hooks.onChange();
+				scope.watch(() => hooks.onChange());
 			}
 		},
 		effect: () => {}

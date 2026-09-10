@@ -7,7 +7,7 @@
  * registration) runs at materialization, when the client module system first
  * imports the id. It registers one card into the shared `settings.plugin.item`
  * slot, keyed on this plugin's settings namespace — the same join key the host
- * half registers via `installSettingsSection`. The "Plugin configuration" tab
+ * half registers via `ctx.settings.installSection`. The "Plugin configuration" tab
  * dispatches the card only when the host serves the namespace, so a deployment
  * that never composed the host half shows no trace of it.
  *
