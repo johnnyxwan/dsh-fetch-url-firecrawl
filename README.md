@@ -41,17 +41,24 @@ must state every provider selection the profile wants in one place.
 ### Tool enablement
 
 Whether a session's model can actually call `web_fetch` is a separate gate
-from provider selection:
+from provider selection. Enable it in the profile's own `cordis.patch.yml`
+by overriding the `tool-web` row. This is the supported route on both the
+web surface (where the composed preset's `tool-web` row is otherwise the
+source) and non-web profiles, and it survives `dsh` upgrades — the override
+is re-applied from the profile layer on every boot, so you never need to
+re-patch the shipped preset files:
 
-- **Web surface** (`dsh-web-app` profile): the host `tool-web` row is
-  disabled by the bundle by design; per-session tool enablement comes from
-  the **agent preset** in use. The shipped `standard`/`code` presets ship
-  `fetch: false` — set `fetch: true` in the preset (or a derived one) for
-  the sessions that should see `web_fetch`.
-- **Non-web profile**: the host `tool-web` row is live and ships
-  `fetch: false`; patch it in the profile's `cordis.patch.yml` (config keys
-  replace wholesale, so carry the full intended config, e.g.
-  `fetch: true` plus `searchTimeoutMs: 60000`).
+```yaml
+- id: tool-web
+  config:
+    fetch: true
+    searchTimeoutMs: 60000
+```
+
+Note: entry-patch overrides replace the whole `tool-web` config, so carry the
+full intended config — `fetch` plus `searchTimeoutMs` (the value the preset
+ships). If the preset later adds keys under `tool-web`, add them here too or
+they drop.
 
 After editing, restart the DSH server (the host half loads at boot).
 
@@ -73,4 +80,3 @@ namespace survive uninstall.
 | `client.js` | browser half: the settings card (served at `/plugins/dsh-fetch-url-firecrawl/client.js`) |
 | `cordis.patch.yml` | the bundle layer (`dsh.bundle.patch`) |
 | `test.mjs` / `test-client.mjs` | host / browser test suites (`node test.mjs` / `node test-client.mjs`) |
-| `dist/enable-fetch-preset.mjs` | deployment-maintenance tool (not part of the plugin runtime): patches the *shipped* standard/code agent presets (`fetch: false` → `true`) in the dsh installation — the `web_fetch` enablement gate on the web surface; re-run after a dsh upgrade |
