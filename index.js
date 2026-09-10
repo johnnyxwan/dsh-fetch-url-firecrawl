@@ -34,7 +34,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -158,6 +158,28 @@ function truncateUtf8(str, maxBytes) {
 /** Stable per-URL file name: sha256(url), 16 hex chars. */
 function fullCopyName(url) {
 	return `${createHash("sha256").update(url).digest("hex").slice(0, 16)}.txt`;
+}
+
+/** File name of the plugin-local fetch-request diagnostic log. */
+const REQUEST_LOG_FILENAME = "requests.jsonl";
+
+/**
+ * Append one fetch-request diagnostic record to the plugin-local JSONL file
+ * under `dir` (the same ephemeral location as the full-copy spills).
+ * Fire-and-forget: the record is purely informational — losing it cannot
+ * affect anything the harness reconstructs — so a tmp-write failure (missing
+ * dir, disk pressure, permissions) is swallowed rather than failing the fetch.
+ *
+ * @param request - the record ({ endpoint, url }).
+ * @param dir - the plugin's full-copy directory (created lazily).
+ */
+function recordRequestLocally(request, dir) {
+	const line = JSON.stringify({ ...request, time: Date.now() }) + "\n";
+	mkdir(dir, { recursive: true })
+		.then(() => appendFile(join(dir, REQUEST_LOG_FILENAME), line, "utf8"))
+		.catch(() => {
+			// Diagnostic-only: never fail a fetch over a tmp write.
+		});
 }
 
 /** Render the full copy of one fetched page (title, url, status, full content). */
@@ -331,6 +353,7 @@ class FirecrawlFetchProvider {
 function resolveOptions(ctx, config) {
 	const apiKeyEnv = credentialRef(config.apiKeyEnv ?? FIRECRAWL_DEFAULT_API_KEY_ENV);
 	const literalApiKey = config.apiKey !== undefined && config.apiKey.length > 0 ? config.apiKey : undefined;
+	const fullCopyDir = config.fullCopyDir ?? join(tmpdir(), FIRECRAWL_DEFAULT_TEMP_DIRNAME);
 	return {
 		...literalApiKey === undefined ? {} : { apiKey: literalApiKey },
 		resolveApiKey: async () => {
@@ -342,15 +365,24 @@ function resolveOptions(ctx, config) {
 		apiKeyEnv: config.apiKeyEnv ?? FIRECRAWL_DEFAULT_API_KEY_ENV,
 		baseURL: config.baseURL ?? launchEnvironmentOf(ctx).get("FIRECRAWL_BASE_URL")?.value ?? FIRECRAWL_DEFAULT_BASE_URL,
 		maxFetchedLength: config.maxFetchedLength ?? FIRECRAWL_DEFAULT_MAX_FETCHED_LENGTH,
-		fullCopyDir: config.fullCopyDir ?? join(tmpdir(), FIRECRAWL_DEFAULT_TEMP_DIRNAME),
+		fullCopyDir,
 		recordRequest: (request) => {
+			// Diagnostic only — deliberately NOT a session-log event.
+			//
 			// `web/firecrawl-fetch-request` is a plugin-owned event type,
-			// outside the harness's known-event catalog by construction. The
-			// persistence read path refuses unknown types unless the writer
-			// marks them ignorable, so this diagnostic record MUST carry the
-			// envelope flag — otherwise any build without this plugin in its
-			// catalog refuses to load the session's history at all.
-			ctx.get("agents")?.currentInitiator()?.session.append("web/firecrawl-fetch-request", request, { ignorable: true });
+			// outside the harness's build-static known-event catalog by
+			// construction, and the persistence read path refuses unknown
+			// types unless the event carries the `ignorable` envelope flag.
+			// `Session.append` CANNOT carry that flag: its options parameter
+			// is the surface intent (surfaceOp / sourceEventSeqs only), and
+			// an `ignorable` key passed there is silently dropped, so the
+			// event persists UNMARKED. Any harness build that lacks this type
+			// in its catalog then refuses to load the session's history at
+			// all — a diagnostic record must never poison the durable log.
+			// The record therefore goes to a local, ephemeral JSONL file
+			// under the full-copy directory instead: losing it cannot affect
+			// session reconstruction, and no harness can choke on it.
+			recordRequestLocally(request, fullCopyDir);
 		}
 	};
 }

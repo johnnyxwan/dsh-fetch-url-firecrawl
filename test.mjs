@@ -3,7 +3,8 @@
  * Run from this directory:  node test.mjs
  * Stubs globalThis.fetch and the cordis plugin context; asserts wire shape,
  * response mapping, fetched-length capping (trim + tmp full-copy spill),
- * non-2xx-target semantics, error paths, and abort handling.
+ * non-2xx-target semantics, error paths, abort handling, and that the
+ * fetch-request diagnostic stays out of the durable session log.
  */
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -97,15 +98,41 @@ function fakeInject(deps, fn) {
 }
 const noopInject = () => {}; // settings service not mounted → composed-as-is
 
+// Session spy: captures any session-log append the provider attempts. A
+// plugin-owned event type (e.g. `web/firecrawl-fetch-request`) can NEVER be
+// written to the durable log safely — Session.append silently drops the
+// `ignorable` envelope flag, and an unmarked unknown type makes every harness
+// build that lacks it in its catalog refuse to load the session's history.
+const appendedSessionEvents = [];
 const ctx = {
 	web: webStub, // injected property (inject: ['web'])
 	inject: fakeInject,
 	fiber: { state: 0 }, // not unloading/disposed (dsh-settings isUnloading guard)
 	get: (id) => {
 		if (id === "credentials") return { resolve: async (ref) => (ref === "FIRECRAWL_API_KEY" ? { value: "fc-test-key" } : undefined) };
-		return undefined; // agents → recordRequest no-op
-	},
+		if (id === "agents") return {
+			currentInitiator: () => ({
+				session: {
+					append: (type, data, ...opts) => {
+						appendedSessionEvents.push({ type, data, opts });
+						return { type, data };
+					}
+				}
+			})
+		};
+		return undefined;
+	}
 };
+
+/** Poll a predicate until it holds or the deadline passes (async fire-and-forget diagnostics). */
+async function waitFor(predicate, deadlineMs = 2000) {
+	const start = Date.now();
+	while (Date.now() - start < deadlineMs) {
+		if (predicate()) return true;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	return predicate();
+}
 
 // ── apply() registers into ctx.web ─────────────────────────────────────────
 apply(ctx, { apiKeyEnv: "FIRECRAWL_API_KEY" });
@@ -156,6 +183,23 @@ assert.equal(result.statusCode, 200, "status from metadata.statusCode");
 assert.deepEqual(result.body, { kind: "text", content: fakeScrape.data.markdown }, "markdown maps to a text body");
 assert.equal(result.truncated, false, "under-cap fetch is not truncated");
 console.log("ok: wire shape (POST /v2/scrape, url + formats) and result mapping");
+
+// ── request diagnostic: local JSONL under fullCopyDir, never the session log ─
+{
+	const diagDir = mkdtempSync(join(tmpdir(), "dsh-fetch-url-firecrawl-diag-"));
+	settingsScope.set({ apiKeyEnv: "FIRECRAWL_API_KEY", fullCopyDir: diagDir });
+	await provider.fetch({ url: "https://example.com" });
+	const diagFile = join(diagDir, "requests.jsonl");
+	assert.ok(await waitFor(() => existsSync(diagFile)), "request diagnostic file appears under the full-copy dir");
+	const records = readFileSync(diagFile, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+	assert.equal(records.length, 1, "one record per fetch");
+	assert.equal(records[0].endpoint, "https://api.firecrawl.dev/v2/scrape");
+	assert.equal(records[0].url, "https://example.com");
+	assert.equal(typeof records[0].time, "number", "record carries its own timestamp");
+	settingsScope.set({ apiKeyEnv: "FIRECRAWL_API_KEY" });
+	rmSync(diagDir, { recursive: true, force: true });
+}
+console.log("ok: fetch-request diagnostic written to local requests.jsonl (ephemeral, harness-independent)");
 
 // ── non-2xx TARGET is a result, not an error ───────────────────────────────
 fakeScrapeOverride = {
@@ -223,12 +267,13 @@ const trimmedPart = capResult.body.content.split("\n\n[fetched content")[0];
 assert.ok(Buffer.byteLength(trimmedPart, "utf8") <= 1000, "trimmed content within budget");
 const copyFile = join(capDir, fullCopyName("https://long.example/a"));
 assert.ok(existsSync(copyFile), "full copy file written");
+assert.ok(await waitFor(() => existsSync(join(capDir, "requests.jsonl"))), "request diagnostic recorded alongside the spill");
 const copyText = readFileSync(copyFile, "utf8");
 assert.ok(copyText.includes("# Long page"), "copy has title");
 assert.ok(copyText.includes("https://long.example/a"), "copy has url");
 assert.ok(copyText.includes("HTTP 200"), "copy has status");
 assert.ok(copyText.includes("END-MARKER"), "copy has the FULL content");
-assert.deepEqual(readdirSync(capDir).sort(), [fullCopyName("https://long.example/a")], "exactly one spill file");
+assert.deepEqual(readdirSync(capDir).sort(), [fullCopyName("https://long.example/a"), "requests.jsonl"], "spill file + request diagnostic only");
 fakeScrapeOverride = null;
 rmSync(capDir, { recursive: true, force: true });
 console.log("ok: over-limit body trimmed to budget, full copy spilled to tmp with pointer");
@@ -337,5 +382,14 @@ await assert.rejects(
 	(err) => err.code === "WEB_ABORTED"
 );
 console.log("ok: pre-aborted signal surfaces WEB_ABORTED");
+
+// ── regression: the provider must never append session-log events ───────────
+// `Session.append` cannot carry the `ignorable` envelope flag (its options
+// parameter is the surface intent only), so any plugin-owned type appended
+// here persists UNMARKED and every harness build without it in its known-event
+// catalog then refuses to load the session's history. The diagnostic record
+// must stay out of the durable log entirely.
+assert.deepEqual(appendedSessionEvents, [], "provider appended no session-log events");
+console.log("ok: no plugin-owned event ever reaches the session log (root-cause regression guard)");
 
 console.log("\nALL TESTS PASSED");
