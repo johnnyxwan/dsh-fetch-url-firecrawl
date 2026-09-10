@@ -32,7 +32,7 @@ window.__ModuleLoader__.load({
 
 		let react = require("react");
 		let jsx = require("react/jsx-runtime");
-		let runtime = require("@deepseek-ai/dsh-client-runtime/client");
+		let runtime = require("@deepseek-ai/dsh-client-store");
 
 		/* ── Card CSS: the shipped card rule set under this card's scoped names ── */
 		const CSS = `
